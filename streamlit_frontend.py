@@ -1,15 +1,6 @@
 import streamlit as st
 import time
 
-# JavaScript to check internet connectivity
-check_online_js = """
-<script>
-function checkOnline() {
-    return navigator.onLine;
-}
-</script>
-"""
-
 # Streamlit app
 def main():
     st.title("Attendance Timer 🕒")
@@ -22,9 +13,41 @@ def main():
         st.session_state.time_remaining = 10  # Set timer duration (10 seconds)
     if "attendance_marked" not in st.session_state:
         st.session_state.attendance_marked = False
+    if "online_status" not in st.session_state:
+        st.session_state.online_status = True  # Assume online by default
 
-    # Inject JavaScript to check online status
-    st.components.v1.html(check_online_js)
+    # JavaScript to check online status and update session state
+    st.components.v1.html(
+        """
+        <script>
+        function checkOnline() {
+            const online = navigator.onLine;
+            if (online) {
+                window.parent.postMessage({type: 'onlineStatus', status: true}, '*');
+            } else {
+                window.parent.postMessage({type: 'onlineStatus', status: false}, '*');
+            }
+        }
+        // Check online status every second
+        setInterval(checkOnline, 1000);
+        </script>
+        """,
+        height=0,
+    )
+
+    # Listen for messages from JavaScript
+    st.components.v1.html(
+        """
+        <script>
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'onlineStatus') {
+                window.parent.streamlitAPI.setComponentValue(event.data.status);
+            }
+        });
+        </script>
+        """,
+        height=0,
+    )
 
     # Start timer button
     if not st.session_state.timer_started and not st.session_state.attendance_marked:
@@ -35,30 +58,11 @@ def main():
     if st.session_state.timer_started:
         st.write("Timer is running...")
         while st.session_state.time_remaining > 0:
-            # Check online status using JavaScript
-            online_status = st.components.v1.html(
-                """
-                <script>
-                document.write(navigator.onLine);
-                </script>
-                """,
-                height=0,
-            )
-            online_status = online_status.strip() == "true"
-
-            if not online_status:
+            # Check online status from session state
+            if not st.session_state.online_status:
                 st.warning("You are offline! Timer paused.")
-                while not online_status:
+                while not st.session_state.online_status:
                     time.sleep(1)  # Wait for 1 second and check again
-                    online_status = st.components.v1.html(
-                        """
-                        <script>
-                        document.write(navigator.onLine);
-                        </script>
-                        """,
-                        height=0,
-                    )
-                    online_status = online_status.strip() == "true"
                 st.success("You are back online! Resuming timer.")
 
             st.write(f"Time remaining: {st.session_state.time_remaining} seconds")
