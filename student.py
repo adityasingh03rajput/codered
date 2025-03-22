@@ -43,22 +43,41 @@ def send_data(action, username=None):
 # Function to handle login
 def login():
     username = entry_username.get()
+    timer_duration = timer_var.get()
+
     if not username:
         messagebox.showwarning("Input Error", "Please enter a username.")
+        return
+
+    if not timer_duration:
+        messagebox.showwarning("Input Error", "Please select a timer duration.")
         return
 
     send_data("login", username)
     messagebox.showinfo("Login Success", f"Welcome, {username}!")
     root.destroy()
-    start_attendance_timer(username)
+    start_attendance_timer(username, timer_duration)
 
 # Function to start the attendance timer
-def start_attendance_timer(username):
+def start_attendance_timer(username, timer_duration):
     timer_window = tk.Tk()
     timer_window.title("Attendance Timer")
     timer_window.geometry("300x200")
 
     timer_running = False
+    remaining_time = int(timer_duration) * 60  # Convert minutes to seconds
+
+    def update_timer():
+        nonlocal remaining_time
+        if timer_running and remaining_time > 0:
+            mins, secs = divmod(remaining_time, 60)
+            timer_label.config(text=f"Time Remaining: {mins:02}:{secs:02}")
+            remaining_time -= 1
+            timer_window.after(1000, update_timer)
+        elif remaining_time <= 0:
+            timer_label.config(text="Time's up!")
+            send_data("stop_timer", username)
+            messagebox.showinfo("Timer Ended", "Your attendance timer has ended.")
 
     def start_timer():
         nonlocal timer_running
@@ -68,6 +87,7 @@ def start_attendance_timer(username):
         send_data("start_timer", username)
         timer_running = True
         messagebox.showinfo("Timer Started", "Your attendance is being marked.")
+        update_timer()
         monitor_wifi(username)
 
     def stop_timer():
@@ -84,24 +104,37 @@ def start_attendance_timer(username):
             else:
                 timer_window.after(5000, monitor_wifi, username)  # Check every 5 seconds
 
+    timer_label = tk.Label(timer_window, text="Time Remaining: 00:00", font=("Arial", 16))
+    timer_label.pack(pady=20)
+
     start_button = tk.Button(timer_window, text="Start Timer", command=start_timer)
-    start_button.pack(pady=20)
+    start_button.pack(pady=10)
 
     stop_button = tk.Button(timer_window, text="Stop Timer", command=stop_timer)
-    stop_button.pack(pady=20)
+    stop_button.pack(pady=10)
 
     timer_window.mainloop()
 
 # Create the login window
 root = tk.Tk()
 root.title("Student Login")
-root.geometry("300x150")
+root.geometry("300x200")
 
 label_username = tk.Label(root, text="Username:")
 label_username.pack(pady=10)
 
 entry_username = tk.Entry(root)
 entry_username.pack(pady=10)
+
+label_timer = tk.Label(root, text="Select Timer Duration (minutes):")
+label_timer.pack(pady=10)
+
+# Dropdown for timer duration
+timer_var = tk.StringVar(root)
+timer_var.set("")  # Default value
+timer_options = ["10", "20", "30", "60"]  # Timer durations in minutes
+timer_dropdown = tk.OptionMenu(root, timer_var, *timer_options)
+timer_dropdown.pack(pady=10)
 
 login_button = tk.Button(root, text="Login", command=login)
 login_button.pack(pady=10)
