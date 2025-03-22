@@ -4,7 +4,7 @@ import time
 # Streamlit app
 def main():
     st.title("Attendance Timer 🕒")
-    st.write("Start the timer to mark your attendance. The timer will only run if you're connected to the internet.")
+    st.write("Start the timer to mark your attendance. The timer will only run if you're connected to Wi-Fi.")
 
     # Initialize session state for timer
     if "timer_started" not in st.session_state:
@@ -13,23 +13,31 @@ def main():
         st.session_state.time_remaining = 10  # Set timer duration (10 seconds)
     if "attendance_marked" not in st.session_state:
         st.session_state.attendance_marked = False
-    if "online_status" not in st.session_state:
-        st.session_state.online_status = True  # Assume online by default
+    if "wifi_connected" not in st.session_state:
+        st.session_state.wifi_connected = False  # Assume not connected to Wi-Fi initially
 
-    # JavaScript to check online status and update session state
+    # JavaScript to measure network speed and infer Wi-Fi connectivity
     st.components.v1.html(
         """
         <script>
-        function checkOnline() {
-            const online = navigator.onLine;
-            if (online) {
-                window.parent.postMessage({type: 'onlineStatus', status: true}, '*');
-            } else {
-                window.parent.postMessage({type: 'onlineStatus', status: false}, '*');
-            }
+        function measureNetworkSpeed() {
+            const startTime = performance.now();
+            fetch('https://www.google.com')
+                .then(() => {
+                    const endTime = performance.now();
+                    const speed = (endTime - startTime) / 1000; // Speed in seconds
+                    if (speed < 0.5) { // Assume Wi-Fi if speed is fast
+                        window.parent.postMessage({type: 'wifiStatus', status: true}, '*');
+                    } else {
+                        window.parent.postMessage({type: 'wifiStatus', status: false}, '*');
+                    }
+                })
+                .catch(() => {
+                    window.parent.postMessage({type: 'wifiStatus', status: false}, '*');
+                });
         }
-        // Check online status every second
-        setInterval(checkOnline, 1000);
+        // Check network speed every 5 seconds
+        setInterval(measureNetworkSpeed, 5000);
         </script>
         """,
         height=0,
@@ -40,7 +48,7 @@ def main():
         """
         <script>
         window.addEventListener('message', function(event) {
-            if (event.data.type === 'onlineStatus') {
+            if (event.data.type === 'wifiStatus') {
                 window.parent.streamlitAPI.setComponentValue(event.data.status);
             }
         });
@@ -58,12 +66,12 @@ def main():
     if st.session_state.timer_started:
         st.write("Timer is running...")
         while st.session_state.time_remaining > 0:
-            # Check online status from session state
-            if not st.session_state.online_status:
-                st.warning("You are offline! Timer paused.")
-                while not st.session_state.online_status:
+            # Check Wi-Fi status from session state
+            if not st.session_state.wifi_connected:
+                st.warning("You are not connected to Wi-Fi! Timer paused.")
+                while not st.session_state.wifi_connected:
                     time.sleep(1)  # Wait for 1 second and check again
-                st.success("You are back online! Resuming timer.")
+                st.success("You are now connected to Wi-Fi! Resuming timer.")
 
             st.write(f"Time remaining: {st.session_state.time_remaining} seconds")
             time.sleep(1)  # Wait for 1 second
